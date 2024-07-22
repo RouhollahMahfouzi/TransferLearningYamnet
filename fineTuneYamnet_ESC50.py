@@ -133,3 +133,27 @@ result = my_model(embeddings).numpy()
 
 inferred_class = my_classes[result.mean(axis=0).argmax()]
 print(f'The main sound is: {inferred_class}')
+
+
+
+
+# Save a model that can directly take a WAV file as input
+
+class ReduceMeanLayer(tf.keras.layers.Layer):
+  def __init__(self, axis=0, **kwargs):
+    super(ReduceMeanLayer, self).__init__(**kwargs)
+    self.axis = axis
+
+  def call(self, input):
+    return tf.math.reduce_mean(input, axis=self.axis)
+
+saved_model_path = './dogs_and_cats_yamnet'
+
+input_segment = tf.keras.layers.Input(shape=(), dtype=tf.float32, name='audio')
+embedding_extraction_layer = hub.KerasLayer(yamnet_model_handle,
+                                            trainable=False, name='yamnet')
+_, embeddings_output, _ = embedding_extraction_layer(input_segment)
+serving_outputs = my_model(embeddings_output)
+serving_outputs = ReduceMeanLayer(axis=0, name='classifier')(serving_outputs)
+serving_model = tf.keras.Model(input_segment, serving_outputs)
+serving_model.save(saved_model_path, include_optimizer=False)
